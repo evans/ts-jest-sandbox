@@ -190,6 +190,172 @@ describe('tests', () => {
     );
   });
 
+  test.only('apollo client with setOptions no connection', async done => {
+    const ssrClient = new ApolloClient({
+      cache: new InMemoryCache(),
+      link: ssrLink,
+    });
+    await Promise.all([
+      ssrClient.query({
+        query: transformedQuery,
+        variables: {},
+      }),
+    ]);
+    const client = new ApolloClient({
+      cache: new InMemoryCache().restore(ssrClient.extract()), // --- this is the "SSR" bit
+      link,
+    });
+
+    const observableQuery = client.watchQuery({ query: transformedQuery });
+
+    let count = 0;
+    observableQuery.subscribe(
+      (data: any) => {
+        try {
+          if (data.loading) return;
+
+          switch (count) {
+            case 0:
+              console.log('next0', inspect(data, false, null));
+              expect(data.data.books[0].name).toEqual('ssrfirst');
+              //first setOptions, should have no change
+              observableQuery
+                .setOptions({
+                  query: transformedQuery,
+                  variables: { skip: 0 },
+                })
+                .then((data: any) => {
+                  console.log('setOptions1', inspect(data, false, null));
+                  expect(data.data.books[0].name).toEqual('ssrfirst');
+                })
+                .then((data: any) => {
+                  observableQuery
+                    .refetch()
+                    .then(data => {
+                      console.log('refetch1', inspect(data, false, null));
+                      expect(data.data.books[0].name).toEqual('first');
+                    })
+                    .catch(done.fail);
+                })
+                .catch(done.fail);
+              break;
+            case 1:
+              //first refetch
+              console.log('next1', inspect(data, false, null));
+              expect(data.data.books[0].name).toEqual('first');
+              observableQuery
+                .setOptions({
+                  query: transformedQuery,
+                  variables: { skip: 2 },
+                })
+                .then((data: any) => {
+                  console.log('refetch2', inspect(data, false, null));
+                  expect(data.data.books[0].name).toEqual('skip:2');
+                  done();
+                })
+                .catch(done.fail);
+              break;
+            case 2:
+              //second refetch
+              console.log('next2', inspect(data, false, null));
+              expect(data.data.books[0].name).toEqual('skip:2');
+              break;
+            default:
+              done.fail('should not have received more results');
+          }
+          count++;
+        } catch (e) {
+          done.fail(e);
+        }
+      },
+      e => done.fail(`observable error should not have been called ${e}`),
+      () => done.fail('observable complete should not have been called'),
+    );
+  });
+
+  test.only('apollo client with setOptions with connection', async done => {
+    const ssrClient = new ApolloClient({
+      cache: new InMemoryCache(),
+      link: ssrLink,
+    });
+    await Promise.all([
+      ssrClient.query({
+        query,
+        variables: {},
+      }),
+    ]);
+    const client = new ApolloClient({
+      cache: new InMemoryCache().restore(ssrClient.extract()), // --- this is the "SSR" bit
+      link,
+    });
+
+    const observableQuery = client.watchQuery({ query });
+
+    let count = 0;
+    observableQuery.subscribe(
+      (data: any) => {
+        try {
+          if (data.loading) return;
+
+          switch (count) {
+            case 0:
+              console.log('next0', inspect(data, false, null));
+              expect(data.data.books[0].name).toEqual('ssrfirst');
+              //first setOptions, should have no change
+              observableQuery
+                .setOptions({
+                  query,
+                  variables: { skip: 0 },
+                })
+                .then((data: any) => {
+                  console.log('setOptions1', inspect(data, false, null));
+                  expect(data.data.books[0].name).toEqual('ssrfirst');
+                })
+                .then((data: any) => {
+                  observableQuery
+                    .refetch()
+                    .then(data => {
+                      console.log('refetch1', inspect(data, false, null));
+                      expect(data.data.books[0].name).toEqual('first');
+                    })
+                    .catch(done.fail);
+                })
+                .catch(done.fail);
+              break;
+            case 1:
+              //first refetch
+              console.log('next1', inspect(data, false, null));
+              expect(data.data.books[0].name).toEqual('first');
+              observableQuery
+                .setOptions({
+                  query,
+                  variables: { skip: 2 },
+                })
+                .then((data: any) => {
+                  console.log('refetch2', inspect(data, false, null));
+                  expect(data.data.books[0].name).toEqual('skip:2');
+                  done();
+                })
+                .catch(done.fail);
+              break;
+            case 2:
+              //second refetch
+              console.log('next2', inspect(data, false, null));
+              expect(data.data.books[0].name).toEqual('skip:2');
+              break;
+            default:
+              done.fail('should not have received more results');
+          }
+          count++;
+        } catch (e) {
+          done.fail(e);
+        }
+      },
+      e => done.fail(`observable error should not have been called ${e}`),
+      () => done.fail('observable complete should not have been called'),
+    );
+  });
+
   test('react-apollo ssr', async done => {
     const ssrClient = new ApolloClient({
       cache: new InMemoryCache(),
